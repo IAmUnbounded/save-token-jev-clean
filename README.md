@@ -171,6 +171,8 @@ To support another host, implement `TranscriptAdapter<T>` with `canDecode` and `
 | `SAVE_TOKEN_JEV_MAX_STATE_TOKENS` | `25000` | Estimated state budget |
 | `SAVE_TOKEN_JEV_MAX_REQUEST_TOKENS` | `30000` | Estimated state + question budget |
 | `SAVE_TOKEN_JEV_TRUNCATE_HEAD_CHARS` | `300` | Result prefix retained when only the call matters |
+| `SAVE_TOKEN_JEV_MAX_CONCURRENT_REQUESTS` | `4` | Jev requests allowed in flight at once |
+| `SAVE_TOKEN_JEV_TIMEOUT_MS` | `30000` | Provider request timeout before fail-open fallback |
 
 ## Safety properties
 

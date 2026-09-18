@@ -10,6 +10,8 @@ export interface JevClientOptions {
   model?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
+  /** Abort a provider request after this many milliseconds. Defaults to 30 seconds. */
+  timeoutMs?: number;
 }
 
 export interface JevRequest {
@@ -90,10 +92,12 @@ export class JevClient implements JevAsker {
 
   async ask(state: JevState, questions: JevQuestions): Promise<JevResponse> {
     const request = buildJevRequest(this.options, state, questions);
+    const timeout = Number.isFinite(this.options.timeoutMs) ? Math.max(1, this.options.timeoutMs!) : 30_000;
     const response = await (this.options.fetch ?? fetch)(request.url, {
       method: request.method,
       headers: request.headers,
       body: request.body,
+      signal: AbortSignal.timeout(timeout),
     });
     return parseJevResponse(response.status, response.ok, await response.text());
   }

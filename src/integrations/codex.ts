@@ -66,6 +66,8 @@ function compactOptions(env: NodeJS.ProcessEnv): CompactMessagesOptions {
     maxStateTokens: numberEnv(env, 'SAVE_TOKEN_JEV_MAX_STATE_TOKENS', 25_000),
     maxRequestTokens: numberEnv(env, 'SAVE_TOKEN_JEV_MAX_REQUEST_TOKENS', 30_000),
     truncateHeadChars: numberEnv(env, 'SAVE_TOKEN_JEV_TRUNCATE_HEAD_CHARS', 300),
+    maxConcurrentRequests: numberEnv(env, 'SAVE_TOKEN_JEV_MAX_CONCURRENT_REQUESTS', 4),
+    timeoutMs: numberEnv(env, 'SAVE_TOKEN_JEV_TIMEOUT_MS', 30_000),
   };
   if (env.TYPESAFE_API_KEY) options.apiKey = env.TYPESAFE_API_KEY;
   if (env.JEV_MODEL) options.model = env.JEV_MODEL;

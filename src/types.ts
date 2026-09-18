@@ -71,6 +71,8 @@ export interface CompactOptions {
   maxStateTokens?: number;
   maxRequestTokens?: number;
   truncateHeadChars?: number;
+  /** Maximum number of Jev requests allowed to run at once. */
+  maxConcurrentRequests?: number;
 }
 
 export interface ResolvedCompactOptions {
@@ -80,6 +82,7 @@ export interface ResolvedCompactOptions {
   maxStateTokens: number;
   maxRequestTokens: number;
   truncateHeadChars: number;
+  maxConcurrentRequests: number;
 }
 
 export interface CompactStats {

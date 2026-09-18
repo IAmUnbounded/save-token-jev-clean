@@ -6,6 +6,7 @@ import type {
   CompactResult,
   JevAsker,
   JevQuestions,
+  JevState,
   ResolvedCompactOptions,
   ToolCall,
   ToolResultPart,
@@ -20,6 +21,7 @@ export const DEFAULT_OPTIONS: ResolvedCompactOptions = {
   maxStateTokens: 25_000,
   maxRequestTokens: 30_000,
   truncateHeadChars: 300,
+  maxConcurrentRequests: 4,
 };
 
 export const STATE_CONTEXT =
@@ -66,6 +68,7 @@ export function resolveOptions(options: CompactOptions = {}): ResolvedCompactOpt
     maxStateTokens: Math.max(1, Math.floor(finite(options.maxStateTokens, 25_000))),
     maxRequestTokens: Math.max(1, Math.floor(finite(options.maxRequestTokens, 30_000))),
     truncateHeadChars: Math.max(0, Math.floor(finite(options.truncateHeadChars, 300))),
+    maxConcurrentRequests: Math.max(1, Math.floor(finite(options.maxConcurrentRequests, 4))),
   };
 }
 
@@ -86,7 +89,8 @@ export function estimateTokens(text: string): number {
 function stringify(value: unknown): string {
   if (typeof value === 'string') return value;
   try {
-    return JSON.stringify(value);
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value) : serialized;
   } catch {
     return '[unserializable value]';
   }
@@ -189,6 +193,7 @@ function fitState(
   options: ResolvedCompactOptions,
 ): FittedState {
   const goal = options.goal || goalFromMessages(messages);
+  const byMessage = callsByMessage(calls);
   const make = (history: StateEntry[]): FittedState => {
     const state = { context: STATE_CONTEXT, goal, history };
     return { state, tokens: estimateTokens(JSON.stringify(state)), stage: 'full' };
@@ -224,7 +229,7 @@ function fitState(
 
   for (const { entry } of oldFirst) {
     if (isPinned(entry.i, messages.length, options.preserveRecentMessages) || !entry.tool_calls) continue;
-    const own = callsByMessage(calls).get(entry.i) ?? [];
+    const own = byMessage.get(entry.i) ?? [];
     entry.tool_calls = own.map((call) => `${call.id} ${call.name} ${truncate(stringify(call.input).replace(/\s+/g, ' '), 60)} → ${call.isError ? 'error' : 'ok'} ${call.resultChars}ch`);
     const fitted = make(history);
     fitted.stage = 'old calls compacted';
@@ -274,6 +279,31 @@ function batchCalls(calls: readonly ToolCall[], stateTokens: number, maxRequestT
   }
   if (current.length) batches.push(current);
   return batches;
+}
+
+async function askBatches(
+  batches: readonly ToolCall[][],
+  state: JevState,
+  asker: JevAsker,
+  maxConcurrent: number,
+): Promise<Array<{ id: string; keepCall: number; keepResult: number }[]>> {
+  const responses: Array<{ id: string; keepCall: number; keepResult: number }[]> = [];
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < batches.length) {
+      const index = next++;
+      const batch = batches[index]!;
+      const questions = Object.assign({}, ...batch.map(questionsFor)) as JevQuestions;
+      const response = await asker.ask(state, questions);
+      responses[index] = batch.map((call) => ({
+        id: call.id,
+        keepCall: noulAnswer(response.answers, `call_${call.id}`),
+        keepResult: noulAnswer(response.answers, `result_${call.id}`),
+      }));
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(maxConcurrent, batches.length) }, () => worker()));
+  return responses;
 }
 
 function decide(
@@ -372,15 +402,7 @@ export async function compact(
   if (candidates.length) {
     fitted = fitState(messages, calls, resolved);
     batches = batchCalls(candidates, fitted.tokens, resolved.maxRequestTokens);
-    const responses = await Promise.all(batches.map(async (batch) => {
-      const questions = Object.assign({}, ...batch.map(questionsFor)) as JevQuestions;
-      const response = await asker.ask(fitted!.state, questions);
-      return batch.map((call) => ({
-        id: call.id,
-        keepCall: noulAnswer(response.answers, `call_${call.id}`),
-        keepResult: noulAnswer(response.answers, `result_${call.id}`),
-      }));
-    }));
+    const responses = await askBatches(batches, fitted.state, asker, resolved.maxConcurrentRequests);
     for (const answer of responses.flat()) answers.set(answer.id, answer);
   }
 
