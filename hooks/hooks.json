@@ -1,0 +1,32 @@
+{
+  "description": "Prepare and restore Jev-selected verbatim context around Codex compaction.",
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/dist/cli.js\" hook codex",
+            "timeout": 120,
+            "statusMessage": "Selecting context to preserve with Jev"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/dist/cli.js\" hook codex",
+            "timeout": 10,
+            "additionalContextLimit": 200000,
+            "statusMessage": "Restoring Jev-selected context"
+          }
+        ]
+      }
+    ]
+  }
+}

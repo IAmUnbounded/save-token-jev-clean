@@ -1,0 +1,17 @@
+{
+  "name": "save-token-jev",
+  "version": "0.1.0",
+  "description": "Jev-guided, verbatim context compaction for Codex and other coding agents.",
+  "author": {
+    "name": "save-token-jev contributors"
+  },
+  "interface": {
+    "displayName": "Save Token Jev",
+    "shortDescription": "Keep useful context verbatim across compaction.",
+    "longDescription": "Scores old tool calls with Jev, removes stale output, and restores the useful verbatim context after Codex compaction.",
+    "developerName": "save-token-jev contributors",
+    "category": "Productivity",
+    "capabilities": ["hooks"],
+    "defaultPrompt": "Explain how save-token-jev protects context during compaction."
+  }
+}

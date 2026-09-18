@@ -1,0 +1,55 @@
+{
+  "name": "save-token-jev",
+  "version": "0.1.0",
+  "description": "Portable Jev-guided, verbatim context compaction for Codex, OpenCode, Claude Code, and custom agents.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "save-token-jev": "dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters/index.d.ts",
+      "import": "./dist/adapters/index.js"
+    },
+    "./opencode": {
+      "types": "./dist/integrations/opencode.d.ts",
+      "import": "./dist/integrations/opencode.js"
+    },
+    "./claude": {
+      "types": "./dist/integrations/claude.d.ts",
+      "import": "./dist/integrations/claude.js"
+    }
+  },
+  "files": [
+    "dist",
+    "hooks",
+    "plugins",
+    ".codex-plugin",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "dashboard": "node dist/cli.js dashboard",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.11"
+  }
+}

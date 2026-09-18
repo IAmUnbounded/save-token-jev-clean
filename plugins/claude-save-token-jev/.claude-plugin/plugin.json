@@ -1,0 +1,16 @@
+{
+  "name": "save-token-jev",
+  "version": "0.1.0",
+  "description": "Jev-guided, verbatim context compaction for Claude Code.",
+  "license": "MIT",
+  "userConfig": {
+    "apiKey": { "type": "string", "title": "TypeSafe API key", "description": "Leave unset to use TYPESAFE_API_KEY.", "sensitive": true },
+    "keepThreshold": { "type": "number", "title": "Keep threshold", "default": 0.5 },
+    "preserveRecentMessages": { "type": "number", "title": "Recent messages to preserve", "default": 6 },
+    "minReductionRatio": { "type": "number", "title": "Minimum reduction ratio", "default": 0.15 },
+    "maxStateTokens": { "type": "number", "title": "Maximum Jev state tokens", "default": 25000 },
+    "maxRequestTokens": { "type": "number", "title": "Maximum Jev request tokens", "default": 30000 },
+    "truncateHeadChars": { "type": "number", "title": "Truncated result head characters", "default": 300 },
+    "model": { "type": "string", "title": "Jev model", "default": "jev-latest" }
+  }
+}

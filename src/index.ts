@@ -1,0 +1,10 @@
+export * from './types.js';
+export * from './client.js';
+export * from './core.js';
+export * from './render.js';
+export * from './dashboard.js';
+export * from './adapters/index.js';
+export * from './integrations/codex.js';
+export { register as registerClaudeHook, fromClaudeSession, toClaudeSession } from './integrations/claude.js';
+export { createOpenCodePlugin, type OpenCodePluginOptions } from './integrations/opencode.js';
+export { default } from './integrations/opencode.js';
