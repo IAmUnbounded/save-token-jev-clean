@@ -20,12 +20,37 @@ The algorithm is implemented behind a normalized transcript model and host adapt
 
 Codex currently does not expose a command-hook response that replaces its compacted transcript. Its integration therefore uses the documented `PreCompact` plus `SessionStart(source="compact")` lifecycle. OpenCode exposes a direct compaction-result hook, so its integration replaces the summary.
 
+## Jev providers
+
+The decisions can come from TypeSafe directly or from OpenRouter's Decisions API. Both speak the same `{ model, state, questions }` request and `{ answers }` response, so the compactor and every host integration are unchanged; only the endpoint, the key, and the model id differ.
+
+| Provider | Endpoint | Key | Default model |
+| --- | --- | --- | --- |
+| TypeSafe (default) | `https://api.typesafe.ai/v1/systemone` | `TYPESAFE_API_KEY` | `jev-latest` |
+| OpenRouter | `https://openrouter.ai/api/alpha/decisions` | `OPENROUTER_API_KEY` | `typesafe/jev-1.13` |
+
+OpenRouter is selected when `JEV_PROVIDER=openrouter`, or automatically when `OPENROUTER_API_KEY` is set and neither `TYPESAFE_API_KEY`, `JEV_BASE_URL`, nor an explicit `apiKey` is. An explicit `provider` option wins over all of them. `JEV_MODEL` and `JEV_BASE_URL` still override the provider defaults, and a key is only ever read from the variable belonging to the selected provider.
+
+```bash
+export OPENROUTER_API_KEY="sk-or-..."
+export JEV_PROVIDER=openrouter   # optional; the key alone selects OpenRouter
+save-token-jev doctor            # prints the resolved provider, key variable, model, and endpoint
+```
+
+The OpenRouter transport also sends optional attribution headers. `OPENROUTER_APP_NAME` defaults to `save-token-jev` and `OPENROUTER_APP_URL` is unset unless you provide it; `x-title` and `http-referer` never change routing.
+
+```ts
+import { compactMessages } from 'save-token-jev';
+
+const result = await compactMessages(messages, { provider: 'openrouter' });
+```
+
 ## Install and build
 
 ```bash
 npm install
 npm run check
-export TYPESAFE_API_KEY="..."
+export TYPESAFE_API_KEY="..."   # or OPENROUTER_API_KEY
 ```
 
 Node 20 or newer is required. The runtime package has no third-party dependencies.
@@ -76,7 +101,7 @@ Claude Code's function hooks can directly replace the message list, so this inte
 
 ```bash
 export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
-export TYPESAFE_API_KEY="..."
+export TYPESAFE_API_KEY="..."   # or OPENROUTER_API_KEY and JEV_PROVIDER=openrouter
 claude --plugin-dir ./plugins/claude-save-token-jev
 ```
 
@@ -162,9 +187,13 @@ To support another host, implement `TranscriptAdapter<T>` with `canDecode` and `
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
-| `TYPESAFE_API_KEY` | required unless stored in macOS Keychain | TypeSafe/Jev API key |
-| `JEV_MODEL` | `jev-latest` | Jev model |
-| `JEV_BASE_URL` | System One endpoint | Alternate compatible endpoint |
+| `TYPESAFE_API_KEY` | required for the TypeSafe transport unless stored in macOS Keychain | TypeSafe/Jev API key |
+| `OPENROUTER_API_KEY` | — | OpenRouter key; also selects the OpenRouter transport when no TypeSafe key or endpoint is set |
+| `JEV_PROVIDER` | detected | `typesafe` or `openrouter`; overrides key-based detection and rejects unknown values |
+| `JEV_MODEL` | provider default | Jev model (`jev-latest` or `typesafe/jev-1.13`) |
+| `JEV_BASE_URL` | provider endpoint | Alternate compatible endpoint |
+| `OPENROUTER_APP_NAME` | `save-token-jev` | OpenRouter `x-title` attribution header |
+| `OPENROUTER_APP_URL` | unset | OpenRouter `http-referer` attribution header |
 | `SAVE_TOKEN_JEV_KEEP_THRESHOLD` | `0.5` | Minimum keep probability |
 | `SAVE_TOKEN_JEV_PRESERVE_RECENT` | `6` | Newest messages pinned from deletion |
 | `SAVE_TOKEN_JEV_MIN_REDUCTION` | `0.15` | Minimum reduction for host integration takeover |
@@ -182,10 +211,11 @@ To support another host, implement `TranscriptAdapter<T>` with `canDecode` and `
 - Untouched message and part objects retain their identity in the library result.
 - Requests are batched concurrently and malformed or incomplete Jev answers fail the entire attempt.
 - Host integrations fall back to native compaction rather than blocking the agent.
+- A key is only read from the variable of the selected provider, so a TypeSafe key is never sent to OpenRouter and an OpenRouter key is never sent to TypeSafe. An explicitly passed `apiKey` keeps the TypeSafe default even when `OPENROUTER_API_KEY` is set in the surrounding environment.
 
 Token counts are conservative estimates, not tokenizer-exact values. Jev probabilities are decisions, not proofs; use a higher threshold for sessions with expensive or irreproducible tool output.
 
-On macOS, `save-token-jev` also checks Login Keychain for a generic password whose service is `save-token-jev` and whose account is the current OS username. This keeps the API key out of repository configuration and shell startup files.
+On macOS, `save-token-jev` also checks Login Keychain for a generic password whose account is the current OS username, using the service `save-token-jev` for TypeSafe and `save-token-jev-openrouter` for OpenRouter. This keeps the API key out of repository configuration and shell startup files. Pass `useKeychain: false` to the library, or `resolveApiKey`, when the `security` subprocess should not run.
 
 ## Development
 
