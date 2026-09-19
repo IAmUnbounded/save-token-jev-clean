@@ -4,13 +4,14 @@
   "description": "Jev-guided, verbatim context compaction for Claude Code.",
   "license": "MIT",
   "userConfig": {
-    "apiKey": { "type": "string", "title": "TypeSafe API key", "description": "Leave unset to use TYPESAFE_API_KEY.", "sensitive": true },
+    "apiKey": { "type": "string", "title": "Jev API key", "description": "Leave unset to use TYPESAFE_API_KEY or OPENROUTER_API_KEY.", "sensitive": true },
+    "provider": { "type": "string", "title": "Jev provider", "description": "typesafe or openrouter. Leave unset to follow JEV_PROVIDER, then the available key." },
     "keepThreshold": { "type": "number", "title": "Keep threshold", "default": 0.5 },
     "preserveRecentMessages": { "type": "number", "title": "Recent messages to preserve", "default": 6 },
     "minReductionRatio": { "type": "number", "title": "Minimum reduction ratio", "default": 0.15 },
     "maxStateTokens": { "type": "number", "title": "Maximum Jev state tokens", "default": 25000 },
     "maxRequestTokens": { "type": "number", "title": "Maximum Jev request tokens", "default": 30000 },
     "truncateHeadChars": { "type": "number", "title": "Truncated result head characters", "default": 300 },
-    "model": { "type": "string", "title": "Jev model", "default": "jev-latest" }
+    "model": { "type": "string", "title": "Jev model", "description": "Defaults to jev-latest for TypeSafe and typesafe/jev-1.13 for OpenRouter." }
   }
 }

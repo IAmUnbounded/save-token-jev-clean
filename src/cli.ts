@@ -4,7 +4,7 @@ import process from 'node:process';
 import { decodeTranscript } from './adapters/index.js';
 import { fromCodexJsonl } from './adapters/codex.js';
 import { compactMessages } from './core.js';
-import { resolveApiKey } from './client.js';
+import { providerDefaults, resolveApiKey, resolveProvider } from './client.js';
 import { handleCodexHook } from './integrations/codex.js';
 import { summarizeCompaction } from './render.js';
 import { startDashboard } from './dashboard.js';
@@ -60,7 +60,9 @@ Usage:
   save-token-jev doctor
 
 Environment:
-  TYPESAFE_API_KEY                       required for live compaction
+  TYPESAFE_API_KEY                       Jev API key for the default TypeSafe transport
+  OPENROUTER_API_KEY                     OpenRouter key; selects OpenRouter when TYPESAFE_API_KEY is unset
+  JEV_PROVIDER                           typesafe | openrouter, overrides key-based detection
   JEV_MODEL, JEV_BASE_URL                optional Jev transport overrides
   SAVE_TOKEN_JEV_KEEP_THRESHOLD          default 0.5
   SAVE_TOKEN_JEV_PRESERVE_RECENT         default 6
@@ -78,11 +80,16 @@ async function main(): Promise<void> {
     return;
   }
   if (args[0] === 'doctor') {
+    const env = process.env;
+    const provider = resolveProvider({}, env);
+    const defaults = providerDefaults(provider);
     process.stdout.write(JSON.stringify({
       node: process.version,
-      apiKey: resolveApiKey() ? 'configured' : 'missing',
-      model: process.env.JEV_MODEL || 'jev-latest',
-      baseUrl: process.env.JEV_BASE_URL || 'https://api.typesafe.ai/v1/systemone',
+      provider,
+      apiKey: resolveApiKey(undefined, { provider, env }) ? 'configured' : 'missing',
+      apiKeyEnv: defaults.apiKeyEnv,
+      model: env.JEV_MODEL || defaults.model,
+      baseUrl: env.JEV_BASE_URL || defaults.url,
     }, null, 2) + '\n');
     return;
   }

@@ -1,4 +1,4 @@
-import { buildJevRequest, DEFAULT_MODEL, parseJevResponse } from '../client.js';
+import { buildJevRequest, parseJevResponse, resolveProvider, type JevRequestOptions } from '../client.js';
 import { compact, reductionRatio } from '../core.js';
 import { summarizeCompaction } from '../render.js';
 import type { CompactOptions, JevAsker, TranscriptMessage, TranscriptPart } from '../types.js';
@@ -101,27 +101,42 @@ function numberOption(options: ClaudePluginOptions, name: string, fallback: numb
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-async function apiKey(runtime: ClaudeRuntime, options: ClaudePluginOptions): Promise<string | undefined> {
-  if (typeof options.apiKey === 'string' && options.apiKey) return options.apiKey;
-  const environment = await runtime.env.get('TYPESAFE_API_KEY');
-  if (environment) return environment;
+const TRANSPORT_ENV_VARS = [
+  'JEV_PROVIDER',
+  'JEV_MODEL',
+  'JEV_BASE_URL',
+  'TYPESAFE_API_KEY',
+  'OPENROUTER_API_KEY',
+  'OPENROUTER_APP_NAME',
+  'OPENROUTER_APP_URL',
+] as const;
+
+/** Reads the Jev transport settings this plugin honors from the runtime environment, then Claude settings. */
+async function transportEnv(runtime: ClaudeRuntime): Promise<NodeJS.ProcessEnv> {
   const settings = await runtime.settings.read();
-  const env = settings.env;
-  return env && typeof env === 'object' && typeof (env as Record<string, unknown>).TYPESAFE_API_KEY === 'string'
-    ? (env as Record<string, string>).TYPESAFE_API_KEY
-    : undefined;
+  const stored = settings.env && typeof settings.env === 'object' ? settings.env as Record<string, unknown> : {};
+  const env: NodeJS.ProcessEnv = {};
+  for (const name of TRANSPORT_ENV_VARS) {
+    const value = await runtime.env.get(name) ?? stored[name];
+    if (typeof value === 'string' && value) env[name] = value;
+  }
+  return env;
 }
 
 /** Claude Code function-hook registration entrypoint. */
 export const register = (on: ClaudeOn, options: ClaudePluginOptions): void => {
   on('session.compact', async (runtime, event, next) => {
     try {
-      const key = await apiKey(runtime, options);
-      if (!key) throw new Error('TYPESAFE_API_KEY is not configured');
-      const model = typeof options.model === 'string' ? options.model : DEFAULT_MODEL;
+      const env = await transportEnv(runtime);
+      const requestOptions: JevRequestOptions = {
+        provider: resolveProvider(typeof options.provider === 'string' ? { provider: options.provider } : {}, env),
+        env,
+      };
+      if (typeof options.apiKey === 'string' && options.apiKey) requestOptions.apiKey = options.apiKey;
+      if (typeof options.model === 'string' && options.model) requestOptions.model = options.model;
       const asker: JevAsker = {
         async ask(state, questions) {
-          const request = buildJevRequest({ apiKey: key, model }, state, questions);
+          const request = buildJevRequest(requestOptions, state, questions);
           const response = await runtime.http.fetch(request.url, request);
           return parseJevResponse(response.status, response.ok, response.text);
         },

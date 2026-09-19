@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fromCodexJsonl } from '../adapters/codex.js';
+import { resolveApiKey, resolveProvider } from '../client.js';
 import { compactMessages, reductionRatio, type CompactMessagesOptions } from '../core.js';
 import { renderTranscript, summarizeCompaction } from '../render.js';
 import type { CallDecision, CompactStats } from '../types.js';
@@ -60,7 +61,10 @@ function numberEnv(env: NodeJS.ProcessEnv, name: string, fallback: number): numb
 }
 
 function compactOptions(env: NodeJS.ProcessEnv): CompactMessagesOptions {
+  const provider = resolveProvider({}, env);
   const options: CompactMessagesOptions = {
+    provider,
+    env,
     keepThreshold: numberEnv(env, 'SAVE_TOKEN_JEV_KEEP_THRESHOLD', 0.5),
     preserveRecentMessages: numberEnv(env, 'SAVE_TOKEN_JEV_PRESERVE_RECENT', 6),
     maxStateTokens: numberEnv(env, 'SAVE_TOKEN_JEV_MAX_STATE_TOKENS', 25_000),
@@ -69,7 +73,8 @@ function compactOptions(env: NodeJS.ProcessEnv): CompactMessagesOptions {
     maxConcurrentRequests: numberEnv(env, 'SAVE_TOKEN_JEV_MAX_CONCURRENT_REQUESTS', 4),
     timeoutMs: numberEnv(env, 'SAVE_TOKEN_JEV_TIMEOUT_MS', 30_000),
   };
-  if (env.TYPESAFE_API_KEY) options.apiKey = env.TYPESAFE_API_KEY;
+  const apiKey = resolveApiKey(undefined, { provider, env });
+  if (apiKey) options.apiKey = apiKey;
   if (env.JEV_MODEL) options.model = env.JEV_MODEL;
   if (env.JEV_BASE_URL) options.baseUrl = env.JEV_BASE_URL;
   return options;
