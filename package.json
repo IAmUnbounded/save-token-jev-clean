@@ -34,13 +34,16 @@
     "dist",
     "hooks",
     "plugins",
+    "!plugins/claude-save-token-jev/tsconfig.json",
     ".codex-plugin",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "build": "npm run clean && tsc -p tsconfig.json",
+    "clean": "node -e \"for (const d of ['dist', 'plugins/claude-save-token-jev/dist']) require('node:fs').rmSync(d, { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json && npm run build:plugin",
+    "build:plugin": "tsc -p plugins/claude-save-token-jev/tsconfig.build.json",
+    "prepare": "npm run build",
     "dashboard": "node dist/cli.js dashboard",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",

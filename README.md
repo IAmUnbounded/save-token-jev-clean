@@ -82,6 +82,26 @@ claude --plugin-dir ./plugins/claude-save-token-jev
 
 The Claude manifest is intentionally nested because Codex and Claude use incompatible `hooks/hooks.json` schemas.
 
+`npm run build` emits a sandbox-contained runtime under `plugins/claude-save-token-jev/dist/`, alongside the repository-root `dist/`. Claude Code resolves the module named in `hooks/hooks.json` against the plugin directory and refuses any path that leaves it, so the hook loads from the plugin-local build rather than the root one.
+
+### Credentials under the function-hook sandbox
+
+Claude Code function hooks run in a restricted sandbox with no `process` and no Node builtins, so the Claude integration deliberately does not import the Node client or its Keychain resolver. It takes the key from the plugin runtime instead, in this order:
+
+1. the plugin's `apiKey` setting,
+2. `TYPESAFE_API_KEY` in the environment Claude was launched with,
+3. `env.TYPESAFE_API_KEY` in Claude's settings.
+
+The key therefore has to reach Claude itself; the hook cannot look it up on its own. If you already keep it in the Login Keychain for the CLI, read that item into the launch environment rather than writing the key into repository configuration or shell startup files:
+
+```bash
+export CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1
+export TYPESAFE_API_KEY="$(security find-generic-password -a "$USER" -s save-token-jev -w)"
+claude --plugin-dir ./plugins/claude-save-token-jev
+```
+
+With no key from any of the three sources, the hook logs one line and defers to Claude's built-in compaction.
+
 ## CLI
 
 Compact a normalized, Anthropic, OpenAI, or OpenCode JSON transcript:
@@ -162,7 +182,7 @@ To support another host, implement `TranscriptAdapter<T>` with `canDecode` and `
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
-| `TYPESAFE_API_KEY` | required unless stored in macOS Keychain | TypeSafe/Jev API key |
+| `TYPESAFE_API_KEY` | required unless stored in the macOS Keychain (CLI and library only) | TypeSafe/Jev API key |
 | `JEV_MODEL` | `jev-latest` | Jev model |
 | `JEV_BASE_URL` | System One endpoint | Alternate compatible endpoint |
 | `SAVE_TOKEN_JEV_KEEP_THRESHOLD` | `0.5` | Minimum keep probability |
@@ -185,7 +205,7 @@ To support another host, implement `TranscriptAdapter<T>` with `canDecode` and `
 
 Token counts are conservative estimates, not tokenizer-exact values. Jev probabilities are decisions, not proofs; use a higher threshold for sessions with expensive or irreproducible tool output.
 
-On macOS, `save-token-jev` also checks Login Keychain for a generic password whose service is `save-token-jev` and whose account is the current OS username. This keeps the API key out of repository configuration and shell startup files.
+On macOS, the CLI and library also check the Login Keychain for a generic password whose service is `save-token-jev` and whose account is the current OS username. This keeps the API key out of repository configuration and shell startup files. The Claude Code hook runs in a sandbox without Node builtins and does not perform this lookup; see [Credentials under the function-hook sandbox](#credentials-under-the-function-hook-sandbox).
 
 ## Development
 

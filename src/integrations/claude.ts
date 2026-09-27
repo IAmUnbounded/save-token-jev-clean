@@ -1,5 +1,4 @@
-import { buildJevRequest, DEFAULT_MODEL, parseJevResponse } from '../client.js';
-import { compact, reductionRatio } from '../core.js';
+import { compact, reductionRatio } from '../compact-core.js';
 import { summarizeCompaction } from '../render.js';
 import type { CompactOptions, JevAsker, TranscriptMessage, TranscriptPart } from '../types.js';
 
@@ -45,12 +44,77 @@ interface NormalizedClaude {
   originals: Map<TranscriptMessage, ClaudeSessionMessage>;
 }
 
+const DEFAULT_MODEL = 'jev-latest';
+const SYSTEM_ONE_URL = 'https://api.typesafe.ai/v1/systemone';
+
+interface ClaudeJevRequest {
+  url: string;
+  method: 'POST';
+  headers: Record<string, string>;
+  body: string;
+}
+
+function buildClaudeJevRequest(
+  apiKey: string,
+  model: string,
+  state: Parameters<JevAsker['ask']>[0],
+  questions: Parameters<JevAsker['ask']>[1],
+): ClaudeJevRequest {
+  return {
+    url: SYSTEM_ONE_URL,
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      state,
+      questions,
+    }),
+  };
+}
+
+function parseClaudeJevResponse(
+  status: number,
+  ok: boolean,
+  text: string,
+): ReturnType<JevAsker['ask']> extends Promise<infer T> ? T : never {
+  if (!ok) throw new Error(`Jev request failed (${status}): ${text.slice(0, 200)}`);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('Jev returned malformed JSON');
+  }
+
+  if (
+    parsed === null ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    !('answers' in parsed) ||
+    parsed.answers === null ||
+    typeof parsed.answers !== 'object' ||
+    Array.isArray(parsed.answers)
+  ) {
+    throw new Error('Jev response is missing answers');
+  }
+
+  return parsed as ReturnType<JevAsker['ask']> extends Promise<infer T> ? T : never;
+}
+
 export function fromClaudeSession(input: readonly ClaudeSessionMessage[]): NormalizedClaude {
   const originals = new Map<TranscriptMessage, ClaudeSessionMessage>();
   const messages = input.map((source) => {
     const parts: TranscriptPart[] = [];
     if (source.text) parts.push({ type: 'text', text: source.text });
     for (const tool of source.toolUses) {
+      // `tool.text` is deliberately ignored. Claude Code 2.1.283 does not store it on the
+      // assistant message: it attaches it when a transcript is read, by pairing the tool_use
+      // with the matching `toolResults` entry of a later message. It is host-derived metadata,
+      // not separately transmitted content, so counting it would double-count the tool result
+      // this loop's paired `tool_result` part already carries.
       parts.push({ type: 'tool_call', id: tool.tool_use_id, name: tool.tool, input: tool.input });
     }
     for (const result of source.toolResults ?? []) {
@@ -101,32 +165,36 @@ function numberOption(options: ClaudePluginOptions, name: string, fallback: numb
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-async function apiKey(runtime: ClaudeRuntime, options: ClaudePluginOptions): Promise<string | undefined> {
-  if (typeof options.apiKey === 'string' && options.apiKey) return options.apiKey;
-  const environment = await runtime.env.get('TYPESAFE_API_KEY');
-  if (environment) return environment;
-  const settings = await runtime.settings.read();
-  const env = settings.env;
-  return env && typeof env === 'object' && typeof (env as Record<string, unknown>).TYPESAFE_API_KEY === 'string'
-    ? (env as Record<string, string>).TYPESAFE_API_KEY
-    : undefined;
-}
-
 /** Claude Code function-hook registration entrypoint. */
 export const register = (on: ClaudeOn, options: ClaudePluginOptions): void => {
-  on('session.compact', async (runtime, event, next) => {
+  on('session.compact', async ($, e, next) => {
     try {
-      const key = await apiKey(runtime, options);
+      let key = typeof options.apiKey === 'string' && options.apiKey
+        ? options.apiKey
+        : await $.env.get('TYPESAFE_API_KEY');
+
+      if (!key) {
+        const settings = await $.settings.read();
+        const env = settings.env;
+        if (
+          env &&
+          typeof env === 'object' &&
+          typeof (env as Record<string, unknown>).TYPESAFE_API_KEY === 'string'
+        ) {
+          key = (env as Record<string, string>).TYPESAFE_API_KEY;
+        }
+      }
+
       if (!key) throw new Error('TYPESAFE_API_KEY is not configured');
       const model = typeof options.model === 'string' ? options.model : DEFAULT_MODEL;
       const asker: JevAsker = {
         async ask(state, questions) {
-          const request = buildJevRequest({ apiKey: key, model }, state, questions);
-          const response = await runtime.http.fetch(request.url, request);
-          return parseJevResponse(response.status, response.ok, response.text);
+          const request = buildClaudeJevRequest(key, model, state, questions);
+          const response = await $.http.fetch(request.url, request);
+          return parseClaudeJevResponse(response.status, response.ok, response.text);
         },
       };
-      const normalized = fromClaudeSession(event.messages);
+      const normalized = fromClaudeSession(e.messages);
       const compactOptions: CompactOptions = {
         keepThreshold: numberOption(options, 'keepThreshold', 0.5),
         preserveRecentMessages: numberOption(options, 'preserveRecentMessages', 6),
@@ -136,16 +204,16 @@ export const register = (on: ClaudeOn, options: ClaudePluginOptions): void => {
       };
       const result = await compact(normalized.messages, asker, compactOptions);
       const minimum = numberOption(options, 'minReductionRatio', 0.15);
-      if (reductionRatio(result) < minimum) return next(event);
+      if (reductionRatio(result) < minimum) return next(e);
       const text = `save-token-jev: ${summarizeCompaction(result)}`;
-      runtime.ui.log(text);
-      runtime.ui.toast(text, { timeoutMs: 15_000 });
+      $.ui.log(text);
+      $.ui.toast(text, { timeoutMs: 15_000 });
       return { messages: toClaudeSession(result.messages, normalized.originals) };
     } catch (error) {
       const text = `save-token-jev: using Claude's built-in compaction (${error instanceof Error ? error.message : String(error)})`;
-      runtime.ui.log(text);
-      runtime.ui.toast(text, { timeoutMs: 15_000 });
-      return next(event);
+      $.ui.log(text);
+      $.ui.toast(text, { timeoutMs: 15_000 });
+      return next(e);
     }
   });
 };

@@ -1,3 +1,5 @@
 {
-  "modules": ["../../../dist/integrations/claude.js"]
+  "modules": [
+    "../dist/integrations/claude.js"
+  ]
 }
