@@ -4,13 +4,53 @@
   "description": "Jev-guided, verbatim context compaction for Claude Code.",
   "license": "MIT",
   "userConfig": {
-    "apiKey": { "type": "string", "title": "TypeSafe API key", "description": "Leave unset to use TYPESAFE_API_KEY.", "sensitive": true },
-    "keepThreshold": { "type": "number", "title": "Keep threshold", "default": 0.5 },
-    "preserveRecentMessages": { "type": "number", "title": "Recent messages to preserve", "default": 6 },
-    "minReductionRatio": { "type": "number", "title": "Minimum reduction ratio", "default": 0.15 },
-    "maxStateTokens": { "type": "number", "title": "Maximum Jev state tokens", "default": 25000 },
-    "maxRequestTokens": { "type": "number", "title": "Maximum Jev request tokens", "default": 30000 },
-    "truncateHeadChars": { "type": "number", "title": "Truncated result head characters", "default": 300 },
-    "model": { "type": "string", "title": "Jev model", "default": "jev-latest" }
+    "apiKey": {
+      "type": "string",
+      "title": "TypeSafe API key",
+      "description": "Leave unset to use TYPESAFE_API_KEY.",
+      "sensitive": true
+    },
+    "keepThreshold": {
+      "type": "number",
+      "title": "Keep threshold",
+      "default": 0.5,
+      "description": "Threshold used to decide whether tool-call context should be retained."
+    },
+    "preserveRecentMessages": {
+      "type": "number",
+      "title": "Recent messages to preserve",
+      "default": 6,
+      "description": "Number of recent messages preserved verbatim during compaction."
+    },
+    "minReductionRatio": {
+      "type": "number",
+      "title": "Minimum reduction ratio",
+      "default": 0.15,
+      "description": "Minimum context reduction required before using Jev compaction."
+    },
+    "maxStateTokens": {
+      "type": "number",
+      "title": "Maximum Jev state tokens",
+      "default": 25000,
+      "description": "Maximum estimated token count allowed for Jev state."
+    },
+    "maxRequestTokens": {
+      "type": "number",
+      "title": "Maximum Jev request tokens",
+      "default": 30000,
+      "description": "Maximum estimated token count allowed for each Jev request."
+    },
+    "truncateHeadChars": {
+      "type": "number",
+      "title": "Truncated result head characters",
+      "default": 300,
+      "description": "Number of leading characters retained when shortening a tool result."
+    },
+    "model": {
+      "type": "string",
+      "title": "Jev model",
+      "default": "jev-latest",
+      "description": "Jev model used for compaction decisions."
+    }
   }
 }

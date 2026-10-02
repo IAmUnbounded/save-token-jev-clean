@@ -1,0 +1,19 @@
+{
+  "//": "Emits the Claude Code function-hook runtime into the plugin directory. Claude Code resolves hooks.json `modules` against the plugin root and rejects anything outside it, so the module must live under plugins/claude-save-token-jev/dist rather than the repository-root dist. Listing only the hook entrypoint keeps the emitted closure to the sandbox-safe modules: client.ts (node:child_process, node:os) must never become reachable from here.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "../../src",
+    "outDir": "./dist",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true
+  },
+  "files": ["../../src/integrations/claude.ts"]
+}
